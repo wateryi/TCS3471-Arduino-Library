@@ -19,16 +19,17 @@
 
 #include "TCS3471.h"
 
-TCS3471::TCS3471(void (*i2cWriteFunc)(byte,byte,byte*),void (*i2cReadFunc)(byte,byte,byte*))
+TCS3471::TCS3471(void (*i2cWriteFunc)(byte,byte,byte*,byte),void (*i2cReadFunc)(byte,byte,byte*,byte))
 {
     _i2cWrite = i2cWriteFunc;
     _i2cRead = i2cReadFunc;
-    _detected = false;
-    _i2cAddress = 0;
+    _detected = true;
+    _i2cAddress = TCS3471_ADDRESS_2;
 }
 
 bool TCS3471::detect()
 {
+  //return true;
     if (_detected)
         return true;
     else
@@ -147,8 +148,9 @@ void TCS3471::clearInterrupt()
 {
     if (_detected)
     {
-        _i2cBuffer[0] = TCS3471_COMMAND_BIT | TCS3471_SPECIAL_BIT | TCS3471_INTCLEAR_BIT;
-        _i2cWrite(_i2cAddress,1,_i2cBuffer);
+        _i2cBufferCMD = TCS3471_COMMAND_BIT | TCS3471_SPECIAL_BIT | TCS3471_INTCLEAR_BIT;
+        _i2cWrite(_i2cAddress, _i2cBufferCMD, _i2cBufferData, 1);
+        
     }
 }
 
@@ -240,33 +242,34 @@ word TCS3471::readBData()
 
 void TCS3471::write8(byte reg, byte val)
 {
-    _i2cBuffer[0] = TCS3471_COMMAND_BIT | reg;
-    _i2cBuffer[1] = val;
-    _i2cWrite(_i2cAddress,2,_i2cBuffer);
+    _i2cBufferCMD = TCS3471_COMMAND_BIT | reg;
+    _i2cBufferData[0] = val;
+    //_i2cWrite(_i2cAddress,2,_i2cBuffer);
+    _i2cWrite(_i2cAddress, _i2cBufferCMD, _i2cBufferData, 1);
 }
 
 void TCS3471::write16(byte reg, word val)
 {
-    _i2cBuffer[0] = TCS3471_COMMAND_BIT | TCS3471_AUTOINCR_BIT | reg;
-    _i2cBuffer[1] = val & 0xFF;
-    _i2cBuffer[2] = (val >> 8) & 0xFF;
-    _i2cWrite(_i2cAddress,3,_i2cBuffer);
+    _i2cBufferCMD = TCS3471_COMMAND_BIT | TCS3471_AUTOINCR_BIT | reg;
+    _i2cBufferData[0] = val & 0xFF;
+    _i2cBufferData[1] = (val >> 8) & 0xFF;
+    _i2cWrite(_i2cAddress, _i2cBufferCMD, _i2cBufferData, 2);
 }
 
 byte TCS3471::read8(byte reg)
 {
-    _i2cBuffer[0] = TCS3471_COMMAND_BIT | reg;
-    _i2cWrite(_i2cAddress, 1, _i2cBuffer);
-    _i2cRead(_i2cAddress, 1, _i2cBuffer);
-    return _i2cBuffer[0];
+    _i2cBufferCMD = TCS3471_COMMAND_BIT | reg;
+    //_i2cWrite(_i2cAddress, _i2cBufferCMD, 1);
+    _i2cRead(_i2cAddress, _i2cBufferCMD, _i2cBufferData, 1);
+    return _i2cBufferData[0];
 }
 
 word TCS3471::read16(byte reg)
 {
-    _i2cBuffer[0] = TCS3471_COMMAND_BIT | TCS3471_AUTOINCR_BIT | reg;
-    _i2cWrite(_i2cAddress, 1, _i2cBuffer);
-    _i2cRead(_i2cAddress, 2, _i2cBuffer);
-    word ret = _i2cBuffer[1] << 8;
-	ret |= _i2cBuffer[0];
+    _i2cBufferCMD = TCS3471_COMMAND_BIT | TCS3471_AUTOINCR_BIT | reg;
+    //_i2cWrite(_i2cAddress, _i2cBufferCMD, 1);
+    _i2cRead(_i2cAddress, _i2cBufferCMD, _i2cBufferData, 2);
+    word ret = _i2cBufferData[1] << 8;
+	ret |= _i2cBufferData[0];
     return ret;
 }

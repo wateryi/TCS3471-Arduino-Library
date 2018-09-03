@@ -1,3 +1,4 @@
+
 /*
   TCS3471.h - TCS3471 Color light-to-digital converter IC by TAOS/AMS library
   Copyright (c) 2012, 2013 Raivis Rengelis (raivis [at] rrkb.lv). All rights reserved.
@@ -88,7 +89,7 @@ tcs3471Gain_t;
 class TCS3471
 {
 public:
-    TCS3471(void (*i2cWriteFunc)(byte,byte,byte*),void (*i2cReadFunc)(byte,byte,byte*));
+    TCS3471(void (*i2cWriteFunc)(byte,byte,byte*,byte),void (*i2cReadFunc)(byte,byte,byte*,byte));
     bool detect();
     bool enable();
     void disable();
@@ -116,9 +117,11 @@ private:
     byte _i2cBuffer[3];
     bool _detected;
     byte _i2cAddress;
+    byte _i2cBufferCMD;
+    byte _i2cBufferData[2];
 
-    void (*_i2cWrite)(byte,byte,byte*);
-    void (*_i2cRead)(byte,byte,byte*);
+    void (*_i2cWrite)(byte,byte,byte*,byte);
+    void (*_i2cRead)(byte,byte,byte*,byte);
 };
 
 #endif

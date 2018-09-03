@@ -24,11 +24,12 @@ TCS3471::TCS3471(void (*i2cWriteFunc)(byte,byte,byte*),void (*i2cReadFunc)(byte,
     _i2cWrite = i2cWriteFunc;
     _i2cRead = i2cReadFunc;
     _detected = false;
-    _i2cAddress = 0;
+    _i2cAddress = TCS3471_ADDRESS_2;
 }
 
 bool TCS3471::detect()
 {
+    return true;
     if (_detected)
         return true;
     else

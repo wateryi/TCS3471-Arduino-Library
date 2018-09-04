@@ -46,10 +46,15 @@ volatile bool colorAvailable = true;
 
 // counter to check when to finish printing
 int printXtimes = 0;
+int redLED = 23;
+int irLED = 4;
 
 void setup()
 {
-  
+  pinMode(redLED, OUTPUT);
+  pinMode(irLED, OUTPUT);
+  digitalWrite(redLED, HIGH);
+  digitalWrite(irLED, HIGH);
 	SerialBT.begin("SpadPhone"); //Bluetooth device name
   Serial.begin(115200);
   i2c1.begin(GPIO_NUM_21, GPIO_NUM_22, 400000);  // sda, scl, 400 Khz
@@ -87,7 +92,7 @@ void setup()
   TCS3471.setWaitTime(0);
   // chip has 4 different analog gain settings - TCS3471_GAIN_1X, TCS3471_GAIN_4X, TCS3471_GAIN_16X and TCS3471_GAIN_60X
   // naked chip under regular ambient lighting works ok with 1x gain
-  TCS3471.setGain(TCS3471_GAIN_1X);
+  TCS3471.setGain(TCS3471_GAIN_4X);
   // if C(lear) channel goes above this value, interrupt will be generated
   // range is from 0-65535, 16 full bits
   // just for demonstration purposes, setting it right above half of full range
@@ -110,13 +115,59 @@ void setup()
   TCS3471.enable();
 }
 
+void getDataTCS3471(word* clearVal, word* redVal, word* greenVal, word* blueVal){
+  if (TCS3471.rgbcValid())
+    {
+      // as mentioned previously, interrupt flag has to be cleared from host
+      TCS3471.clearInterrupt();
+      // reset Arduino flag too
+      colorAvailable = false;
+      // read C(lear) channel data
+      // range from 0-65535
+      *clearVal = TCS3471.readCData();
+      // read R(ed) channel data
+      // range 0-65535
+      *redVal   = TCS3471.readRData();
+      // read G(reen) channel data
+      // range 0-65535
+      *greenVal = TCS3471.readGData();
+      // read B(lue) channel data
+      // range 0-65535
+      *blueVal  = TCS3471.readBData();
+      // and print it all out
+      /*Serial.print("Light is ");
+      Serial.print(*clearVal);
+      Serial.print(" overall and red is ");
+      Serial.print(*redVal);
+      Serial.print(" while green is ");
+      Serial.print(*greenVal);
+      Serial.print(" and blue is ");
+      Serial.println(*blueVal);*/
+      printXtimes++;
+      //delay(5000);
+      //String data = String(*clearVal) + ',' + *redVal + ',' + *greenVal + ',' + *blueVal + ';';
+      //Serial.print(data);
+      //byte databyte[64];
+      //data.getBytes(databyte, data.length()+1);
+      //SerialBT.write(databyte, data.length()+1); 
+
+    }
+}
+
 void loop()
 {
+  float timeInteg = 610;
+  TCS3471.disable();
+  TCS3471.setIntegrationTime(614.4 - timeInteg);
+  TCS3471.enable();
   if (true)
   {
     // check if valid RGBC data is available
     // in this scenario this call is redundant
     // but for demonstration purposes, let's have it here
+    digitalWrite(redLED, LOW);
+    digitalWrite(irLED, HIGH);
+    delay(2000);
     if (TCS3471.rgbcValid())
     {
       // as mentioned previously, interrupt flag has to be cleared from host
@@ -136,22 +187,43 @@ void loop()
       // range 0-65535
       word blueVal  = TCS3471.readBData();
       // and print it all out
-      Serial.print("Light is ");
-      Serial.print(clearVal);
-	  Serial.print(" overall and red is ");
-      Serial.print(redVal);
-      Serial.print(" while green is ");
-      Serial.print(greenVal);
-      Serial.print(" and blue is ");
-      Serial.println(blueVal);
+      //Serial.print("Light is ");
+      //Serial.print(clearVal);
+	    //Serial.print(" overall and red is ");
+      //Serial.print(redVal);
+      //Serial.print(" while green is ");
+      //Serial.print(greenVal);
+      //Serial.print(" and blue is ");
+      //Serial.println(blueVal);
       printXtimes++;
-      delay(5000);
-	  String data = String(clearVal) + ',' + redVal + ',' + greenVal + ',' + blueVal + ';';
-	  Serial.print(data);
-	  byte databyte[64];
-	  data.getBytes(databyte, data.length()+1);
-	  SerialBT.write(databyte, data.length()+1);
+      digitalWrite(redLED, HIGH);
+      digitalWrite(irLED, LOW);
+      timeInteg = 120;
+      TCS3471.disable();
+      TCS3471.setIntegrationTime(614.4 - timeInteg);
+      TCS3471.enable();      
+      delay(2000);
+  	  String data = "Red LED data:" + String(clearVal) + ',' + redVal + ',' + greenVal + ',' + blueVal + ";\n";
+  	  //Serial.print(data);
+  	  byte databyte[1024];
+  	  //data.getBytes(databyte, data.length()+1);
+  	  //SerialBT.write(databyte, data.length()+1);
+      word redLEDInt = clearVal;
 
+
+      getDataTCS3471(&clearVal, &redVal, &greenVal, &blueVal);
+      data = data + "Infrared LED data:" + String(clearVal) + ',' + redVal + ',' + greenVal + ',' + blueVal + ";\n";
+      //Serial.print(data);
+      //data.getBytes(databyte, data.length()+1);
+      //SerialBT.write(databyte, data.length()+1);
+      
+      word irLEDInt = clearVal;      
+      float ndviV = float(abs(irLEDInt - redLEDInt))/float(irLEDInt + redLEDInt);
+      data = data + "ndvi Value:"+ String(ndviV)+ "\n";
+      Serial.print(data);
+      data.getBytes(databyte, data.length()+1);
+      SerialBT.write(databyte, data.length()+1);
+      
     }
   }
   if (printXtimes > 10000)

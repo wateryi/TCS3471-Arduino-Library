@@ -49,12 +49,14 @@ int printXtimes = 0;
 int redLED = 23;
 int irLED = 4;
 int swPin = 34;
-bool swStatus = false;
+volatile byte swStatus = false;
 unsigned int whRed = 65535;
 unsigned int whInf = 65535;
+unsigned int sampleCnt = 0;
 void setup()
 {
-  pinMode(swPin, INPUT);
+  pinMode(swPin, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(swPin), swDetect, RISING);
   pinMode(redLED, OUTPUT);
   pinMode(irLED, OUTPUT);
   digitalWrite(redLED, HIGH);
@@ -164,86 +166,91 @@ void loop()
   TCS3471.disable();
   TCS3471.setIntegrationTime(614.4 - timeInteg);
   TCS3471.enable();
-  swStatus = digitalRead(swPin);
+  //swStatus = digitalRead(swPin);
   delay(100);
   
-  if (true)
+  if (swStatus)
   {
-    Serial.print(swStatus);
-    // check if valid RGBC data is available
-    // in this scenario this call is redundant
-    // but for demonstration purposes, let's have it here
-    digitalWrite(redLED, LOW);
-    digitalWrite(irLED, HIGH);
-    delay(1000);
-    if (TCS3471.rgbcValid())
+    swStatus = false;
+    sampleCnt = sampleCnt + 1;
+    if (sampleCnt%2==1)
     {
-      // as mentioned previously, interrupt flag has to be cleared from host
-      TCS3471.clearInterrupt();
-      // reset Arduino flag too
-      colorAvailable = false;
+      Serial.print(String(swStatus)+','+String(sampleCnt));      
+      // check if valid RGBC data is available
+      // in this scenario this call is redundant
+      // but for demonstration purposes, let's have it here
+      digitalWrite(redLED, LOW);
+      digitalWrite(irLED, HIGH);
       delay(1000);
-      // read C(lear) channel data
-      // range from 0-65535
-      word clearVal = TCS3471.readCData();
-      // read R(ed) channel data
-      // range 0-65535
-      word redVal   = TCS3471.readRData();
-      // read G(reen) channel data
-      // range 0-65535
-      word greenVal = TCS3471.readGData();
-      // read B(lue) channel data
-      // range 0-65535
-      word blueVal  = TCS3471.readBData();
-      // and print it all out
-      //Serial.print("Light is ");
-      //Serial.print(clearVal);
-	    //Serial.print(" overall and red is ");
-      //Serial.print(redVal);
-      //Serial.print(" while green is ");
-      //Serial.print(greenVal);
-      //Serial.print(" and blue is ");
-      //Serial.println(blueVal);
-      printXtimes++;
-      digitalWrite(redLED, HIGH);
-      digitalWrite(irLED, LOW);
-      timeInteg = 120;
-      TCS3471.disable();
-      TCS3471.setIntegrationTime(614.4 - timeInteg);
-      TCS3471.enable();      
-      delay(1000);
-  	  String data = String(clearVal) + ',' + redVal + ',' + greenVal + ',' + blueVal + ",";
-  	  //Serial.print(data);
-  	  byte databyte[1024];
-  	  //data.getBytes(databyte, data.length()+1);
-  	  //SerialBT.write(databyte, data.length()+1);
-      int redLEDInt = clearVal;
-
-
-      getDataTCS3471(&clearVal, &redVal, &greenVal, &blueVal);
-      data = data +  String(clearVal) + ',' + redVal + ',' + greenVal + ',' + blueVal + ",";
-      //Serial.print(data);
-      //data.getBytes(databyte, data.length()+1);
-      //SerialBT.write(databyte, data.length()+1);
-      int irLEDInt = clearVal;     
-      if (irLEDInt > 12000 && redLEDInt > 12000)
+      if (TCS3471.rgbcValid())
       {
-        whRed = redLEDInt;
-        whInf = irLEDInt; 
+        // as mentioned previously, interrupt flag has to be cleared from host
+        TCS3471.clearInterrupt();
+        // reset Arduino flag too
+        colorAvailable = false;
+        delay(1000);
+        // read C(lear) channel data
+        // range from 0-65535
+        word clearVal = TCS3471.readCData();
+        // read R(ed) channel data
+        // range 0-65535
+        word redVal   = TCS3471.readRData();
+        // read G(reen) channel data
+        // range 0-65535
+        word greenVal = TCS3471.readGData();
+        // read B(lue) channel data
+        // range 0-65535
+        word blueVal  = TCS3471.readBData();
+        // and print it all out
+        //Serial.print("Light is ");
+        //Serial.print(clearVal);
+  	    //Serial.print(" overall and red is ");
+        //Serial.print(redVal);
+        //Serial.print(" while green is ");
+        //Serial.print(greenVal);
+        //Serial.print(" and blue is ");
+        //Serial.println(blueVal);
+        printXtimes++;
+        digitalWrite(redLED, HIGH);
+        digitalWrite(irLED, LOW);
+        timeInteg = 120;
+        TCS3471.disable();
+        TCS3471.setIntegrationTime(614.4 - timeInteg);
+        TCS3471.enable();      
+        delay(1000);
+    	  String data = String(clearVal) + ',' + redVal + ',' + greenVal + ',' + blueVal + ",";
+    	  //Serial.print(data);
+    	  byte databyte[1024];
+    	  //data.getBytes(databyte, data.length()+1);
+    	  //SerialBT.write(databyte, data.length()+1);
+        int redLEDInt = clearVal;
+  
+  
+        getDataTCS3471(&clearVal, &redVal, &greenVal, &blueVal);
+        data = data +  String(clearVal) + ',' + redVal + ',' + greenVal + ',' + blueVal + ",";
+        //Serial.print(data);
+        //data.getBytes(databyte, data.length()+1);
+        //SerialBT.write(databyte, data.length()+1);
+        int irLEDInt = clearVal;     
+        if (irLEDInt > 12000 && redLEDInt > 12000)
+        {
+          whRed = redLEDInt;
+          whInf = irLEDInt; 
+        }
+        float caliRed = redLEDInt/float(whRed);
+        float caliInf = irLEDInt/float(whInf);
+        float ndviV = (abs(caliRed- caliInf))/(caliRed + caliInf);
+        char val[16];
+        dtostrf(ndviV, 8, 4, val);
+        data = data + String(whRed) + "," + whInf + "," + val+ "\n";
+        //Serial.print(irLEDInt);
+        //Serial.print(redLEDInt);
+        //Serial.print(ndviV);
+        Serial.print(data);
+        data.getBytes(databyte, data.length()+1);
+        SerialBT.write(databyte, data.length()+1);
+        
       }
-      float caliRed = redLEDInt/float(whRed);
-      float caliInf = irLEDInt/float(whInf);
-      float ndviV = (abs(caliRed- caliInf))/(caliRed + caliInf);
-      char val[16];
-      dtostrf(ndviV, 8, 4, val);
-      data = data + String(whRed) + "," + whInf + "," + val+ "\n";
-      //Serial.print(irLEDInt);
-      //Serial.print(redLEDInt);
-      //Serial.print(ndviV);
-      Serial.print(data);
-      data.getBytes(databyte, data.length()+1);
-      SerialBT.write(databyte, data.length()+1);
-      
     }
   }
   if (printXtimes > 10000)
@@ -275,3 +282,8 @@ void i2cRead(byte address, byte cmd, byte* buffer, byte count)
   i2c1.readBytes(address, cmd, count, buffer, -1);
 
 }
+
+void swDetect(){
+  swStatus  = true;
+}
+
